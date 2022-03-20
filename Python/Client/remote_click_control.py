@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from os import curdir
 import socket
 import time
 import math
@@ -8,11 +7,11 @@ import threading
 import numpy as np
 from util import point_direction, point_distance
 from queue import Queue
-from PythonRobotics.SLAM.ICP.iterative_closest_point import icp_matching
+#from PythonRobotics.SLAM.ICP.iterative_closest_point import icp_matching
 from RasPi_coms import RasPi_coms
 from Turtle_UI import UI
 
-HOST = 'raspberrypi' #'192.168.50.243'  # The server's hostname or IP address
+HOST = 'raspberrypi'    # The server's hostname or IP address
 PORT = 65432            # The port used by the server
 
 """ """
@@ -30,14 +29,15 @@ class LidarBot():
         self.mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.mysocket.connect((HOST, PORT))
 
-        self.Raspi = RasPi_coms(self.mysocket)
-        self.lidar_thread = threading.Thread(target=self.Raspi.run, args=())
-        self.lidar_thread.start()
-
         self.exe_thread = threading.Thread(target=self.thread_execute_actions, args=())
         self.exe_thread.start()
 
         self.t_ui = UI(self.get_click_point)
+
+        self.Raspi = RasPi_coms(self.mysocket)
+        self.lidar_thread = threading.Thread(target=self.Raspi.run, args=())
+
+
 
     """ Runs when the screen is clicked, adds click position to a queue """
     def get_click_point(self, x, y):
@@ -54,11 +54,14 @@ class LidarBot():
         newsize = self.scan_points.shape[1]
         lastsize = self.last_scan_points.shape[1]
         if newsize > lastsize:
-            rot, trans = icp_matching(self.last_scan_points, self.scan_points[:lastsize, :lastsize])
+            pass
+            #rot, trans = icp_matching(self.last_scan_points, self.scan_points[:lastsize, :lastsize])
         elif newsize < lastsize:
-            rot, trans = icp_matching(self.last_scan_points[:newsize, :newsize], self.scan_points)
+            pass
+            #rot, trans = icp_matching(self.last_scan_points[:newsize, :newsize], self.scan_points)
         else:
-            rot, trans = icp_matching(self.last_scan_points, self.scan_points)
+            pass
+            #rot, trans = icp_matching(self.last_scan_points, self.scan_points)
         #print(time.time() - startTime)
         if startPos == True:
             curpos[0] += trans[0]
@@ -129,7 +132,7 @@ class LidarBot():
                 self.moving = False
                 self.mysocket.sendall(bytes('Done\n', 'UTF-8'))
 
-            time.sleep(0.1)
+            #time.sleep(0.5)
 
     """ """
     def estimate_action_time(self, distance=None, heading=None):
@@ -177,18 +180,20 @@ class LidarBot():
 
     """ Main loop, run continiously """
     def main(self):
+        self.lidar_thread.start()
         while self.running:
             self.check_lidar_queue()
             self.check_button_queue()
 
             self.t_ui.clear()
-            self.t_ui.draw_bot()
-            self.t_ui.draw_buttons()
-            if self.moving == False: self.t_ui.draw_basic_points(self.path_points, color='red')
-            else:                    self.t_ui.draw_basic_points(self.path_points, color='green')
+            # self.t_ui.draw_bot()
+            # self.t_ui.draw_buttons()
+            # if self.moving == False: self.t_ui.draw_basic_points(self.path_points, color='red')
+            # else:                    self.t_ui.draw_basic_points(self.path_points, color='green')
             self.t_ui.draw_basic_points(self.scan_points, color='black')
             #self.t_ui.draw_numpy_points(self.scan_points)
             self.t_ui.update()
+            #time.sleep(0.1)
 
 
     """" Stop the program """
@@ -203,6 +208,7 @@ class LidarBot():
         self.mysocket.close()
 
 if __name__ == "__main__":
+
     Bot = LidarBot()
 
     try:
