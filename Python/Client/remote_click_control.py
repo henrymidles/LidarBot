@@ -10,6 +10,7 @@ from queue import Queue
 #from PythonRobotics.SLAM.ICP.iterative_closest_point import icp_matching
 from RasPi_coms import RasPi_coms
 from Turtle_UI import UI
+import sys
 
 HOST = 'raspberrypi'    # The server's hostname or IP address
 PORT = 65432            # The port used by the server
@@ -29,13 +30,13 @@ class LidarBot():
         self.mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.mysocket.connect((HOST, PORT))
 
-        self.exe_thread = threading.Thread(target=self.thread_execute_actions, args=())
-        self.exe_thread.start()
+        #self.exe_thread = threading.Thread(target=self.thread_execute_actions, args=())
+        #self.exe_thread.start()
 
         self.t_ui = UI(self.get_click_point)
 
         self.Raspi = RasPi_coms(self.mysocket)
-        self.lidar_thread = threading.Thread(target=self.Raspi.run, args=())
+        #self.lidar_thread = threading.Thread(target=self.Raspi.run, args=())
 
 
 
@@ -180,27 +181,36 @@ class LidarBot():
 
     """ Main loop, run continiously """
     def main(self):
-        self.lidar_thread.start()
+        #self.lidar_thread.start()
+        lastDataTime = 0
         while self.running:
-            self.check_lidar_queue()
-            self.check_button_queue()
+            
+            #self.check_lidar_queue()
+            
+            newPoints = self.Raspi.sync_run()
+            if newPoints != None:
+                self.scan_points = newPoints
+                print(f"{round(time.time() - lastDataTime, 2)}", end='\r')
+                lastDataTime = time.time()
+            #self.check_button_queue()
 
             self.t_ui.clear()
-            # self.t_ui.draw_bot()
-            # self.t_ui.draw_buttons()
-            # if self.moving == False: self.t_ui.draw_basic_points(self.path_points, color='red')
-            # else:                    self.t_ui.draw_basic_points(self.path_points, color='green')
+            self.t_ui.draw_bot()
+            self.t_ui.draw_buttons()
+            if self.moving == False: self.t_ui.draw_basic_points(self.path_points, color='red')
+            else:                    self.t_ui.draw_basic_points(self.path_points, color='green')
+
+
             self.t_ui.draw_basic_points(self.scan_points, color='black')
-            #self.t_ui.draw_numpy_points(self.scan_points)
             self.t_ui.update()
-            #time.sleep(0.1)
+            
 
 
     """" Stop the program """
     def stop(self):
         self.running = False
         self.Raspi.running = False
-        self.lidar_thread.join()
+        #self.lidar_thread.join()
         print("Closing")
         time.sleep(1)
         self.mysocket.shutdown(0)

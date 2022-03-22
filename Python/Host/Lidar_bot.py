@@ -1,4 +1,3 @@
-
 import serial
 import serial.tools.list_ports    
 import time
@@ -6,7 +5,7 @@ import socket
 import threading
 from queue import Queue
 import math
-import Lidar_X4
+import easy_lidar
 
 HOST = ''
 PORT = 65432 
@@ -91,7 +90,7 @@ def thread_micro(micro):
 
 if __name__ == "__main__":
     micro = serial.Serial('/dev/ttyACM0', 250000, timeout=1)
-    lidar = Lidar_X4('/dev/ttyUSB0')
+    lidar = easy_lidar.Lidar('/dev/ttyUSB0')
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -117,8 +116,7 @@ if __name__ == "__main__":
                     lidar.start()
                     lidar.start_scan()
 
-                    t = time.time()+10 
-                    while time.time() < t:
+                    while True:
                         # Pipe data over to the client
                         newConnection.sendall(lidar.get_data_bytes())
                     
@@ -127,7 +125,7 @@ if __name__ == "__main__":
                 rcv_thread.join()
                 # needed if we break while sending data
                 print("\nConnection Reset by Peer\n")
-                laser.turnOff()
+                lidar.stop()
 
     except KeyboardInterrupt:
         micro_running = False
@@ -137,13 +135,8 @@ if __name__ == "__main__":
         micro.close()
         time.sleep(0.5)
         print('Turning off lidar...')
-        laser.turnOff()
-        time.sleep(0.5)
-        laser.disconnecting()
+        lidar.stop()
         time.sleep(0.5)
         print('Closing server...')
         s.shutdown(0)
         s.close()
-
-
-        

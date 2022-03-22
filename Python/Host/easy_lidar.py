@@ -3,7 +3,7 @@ import random
 import struct
 import serial
 
-class Lidar_X4():
+class Lidar():
     def __init__(self, port='/dev/ttyUSB0'):
         self.lidar = None
         self.port = port
@@ -13,25 +13,30 @@ class Lidar_X4():
         self.lidar = serial.Serial(self.port, self.baud)
     
     def stop(self):
-        self.lidar.close()
-        self.lidar = None
+        if self.lidar != None:
+            self.lidar.close()
+            self.lidar = None
 
     def start_scan(self):
-        send_msg(lidar_s, [0xA5, 0x60], 1)
+        self.send_msg([0xA5, 0x60])
 
-    def send_msg(self, ser, msg):
+    def send_msg(self, msg):
         if self.lidar != None:
             self.lidar.write(bytearray(msg))
 
     def get_data_list(self):
         if self.lidar != None:
-            return list(lidar_s.read(lidar_s.in_waiting))
+            while self.lidar.in_waiting == 0:
+                time.sleep(0.001)
+            return list(self.lidar.read(self.lidar.in_waiting))
         else:
             return None
 
     def get_data_bytes(self):
         if self.lidar != None:
-            return lidar_s.read(lidar_s.in_waiting)
+            while self.lidar.in_waiting == 0:
+                time.sleep(0.001)
+            return self.lidar.read(self.lidar.in_waiting)
         else:
             return None
 

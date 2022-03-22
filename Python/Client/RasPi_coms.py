@@ -44,11 +44,11 @@ class RasPi_coms():
             #for i, f_idx in enumerate(self.f_idxs):
             while self.ii < len(self.f_idxs):
                 f_idx = self.f_idxs[self.ii]
-                if self.data[f_idx+2] == 1:
-                    #print(time.time() - self.lastrxtime)
-                    #self.lastrxtime = time.time()
-                    self.ii += 1
-                    return self.analyse_frames()
+                if f_idx+2 < len(self.data):
+                    if self.data[f_idx+2] == 1:
+
+                        self.ii += 1
+                        return self.analyse_frames()
 
                 if self.ii +1 < len(self.f_idxs):
                     endIdx = self.f_idxs[self.ii +1]
@@ -62,7 +62,7 @@ class RasPi_coms():
         return None
     
     def safe_check(self, data, idx, val):
-        if idx > len(data):
+        if idx >= len(data):
             return False
         else:
             return (data[idx] == val)
@@ -82,39 +82,29 @@ class RasPi_coms():
             else:
                 self.frameBuff.append(data[f_idx:])
 
-                # if frameStart != None:
-                #     self.state = "end"
-                # if frameStart != 0:
-                #     frameBuff += data[:frameStart]
-                #     self.analyse_data(frameBuff)
-
-                    #print(f"{idx} , {idx2} , {idx3}")
-
-        # startpos = 0
-        # while True:
-        #     if self.state == 'start':
-        #         startpos = data.find('L', startpos)
-        #         if startpos == -1: # no start byte, end
-        #             return
-        #         self.state = "end" # found start byte, continue looking for end
-        #     else:
-        #         endpos = data.find('X', startpos)
-        #         if endpos == -1: # no end byte in this frame
-        #             self.buff += list(data[startpos:]) # buffer remaining bytes
-        #             return
-        #         else:
-        #             # found end byte, buffer from start byte to end byte
-        #             # Start byte could be 0 if the frame started normally, but
-        #             # could be some other number of the frame came in pieces
-        #             self.buff += list(data[startpos:endpos])
-        #             self.queue_buffer()
-        #             startpos = endpos + 1
-        #             # Continueing searching the rest of the frame
-        #             self.state = 'start'
-
     def analyse_frames(self):
+
+        def correct_angle(angle, dist):
+            if dist != 0:
+                val = (155.3 - dist) / (155.3 * dist)
+                angle_correction = math.atan(21.8 * val)
+                correction = math.degrees(angle_correction)
+            return correction
+        
+        def to_xy(angle, dist):
+            x = (dist/10)*math.cos(math.radians(angle))
+            y = (dist/10)*math.sin(math.radians(angle))
+            return [x,y] #[angle,dist]
+        
+        def range_valid(range):
+            if range > 20 and range < 8000:
+                return True
+            else:
+                return False
+
         pt_cloud = []
         for packet in self.frameBuff:
+            distances = list()
             #PH  = (packet[1] << 8) | packet[0] # Packet Header
             #CT  = packet[2] # Pcket Type
             LSN = packet[3] # Sample Count
@@ -131,54 +121,25 @@ class RasPi_coms():
                 a_diff += 360
             incriment = a_diff / (LSN-1)
 
-            # First Point
-            i_angle = a_start
-            i_dist  = (packet[11] << 8) | packet[10]
-            i_dist  = i_dist /4  # Convert to mm
-            if i_dist != 0:
-                val = (155.3 - i_dist) / (155.3 * i_dist)
-                angle_correction = math.atan(21.8 * val)
-                i_angle += math.degrees(angle_correction)
-            if i_dist > 20:
-                x = -(i_dist/10)*math.cos(math.radians(i_angle))
-                y =  (i_dist/10)*math.sin(math.radians(i_angle))
-                pt_cloud.append([x, y])
-                #self.queue.put([x, y])
+            #for i = 0; i < 2 * LSN; i = i + 2) 
+            i = 0
+            while i < 2*LSN:
+                i_MSB = 10 + i + 1
+                if i_MSB < len(packet):
+                    dist = packet[i_MSB] << 8 | packet[i_MSB-1]
+                else:
+                    dist = 0
+                #check_code ^= data
+                distances.append(dist / 4)
+                i += 2
 
             # Intermediate Points
-            for i in range(2, LSN-1):
-                d_idx = 10+(2*i)
-                if d_idx > len(packet)-1:
-                    continue
-                i_angle = (incriment * i-1) + a_start
-                i_dist  = (packet[d_idx] << 8) | packet[d_idx-1]
-                i_dist  = i_dist /4  # Convert to mm
-                
-                if i_dist != 0:
-                    val = (155.3 - i_dist) / (155.3 * i_dist)
-                    angle_correction = math.atan(21.8 * val)
-                    i_angle += math.degrees(angle_correction)
-                else:
-                    continue
-                if i_dist > 20:
-                    x = -(i_dist/10)*math.cos(math.radians(i_angle))
-                    y =  (i_dist/10)*math.sin(math.radians(i_angle))
-                    pt_cloud.append([x, y])
-                    #self.queue.put([x, y])
+            for i in range(0, LSN):
+                i_angle = (incriment * i) + a_start
 
-            # Last point
-            i_angle = a_end
-            i_dist  = (packet[-1] << 8) | packet[-2]
-            i_dist  = i_dist /4  # Convert to mm
-            if i_dist != 0:
-                val = (155.3 - i_dist) / (155.3 * i_dist)
-                angle_correction = math.atan(21.8 * val)
-                i_angle += math.degrees(angle_correction)
-            if i_dist > 20:
-                x = -(i_dist/500)*math.cos(math.radians(i_angle))
-                y =  (i_dist/500)*math.sin(math.radians(i_angle))
-                pt_cloud.append([x, y])
-                #self.queue.put([x, y])
+                if range_valid(distances[i]):
+                    i_correction = correct_angle(i_angle, distances[i])
+                    pt_cloud.append(to_xy(i_angle + i_correction, distances[i]))
         self.frameBuff = []
         return pt_cloud
         
@@ -237,7 +198,10 @@ if __name__ == "__main__":
             newPoints = Raspi.sync_run()
             if newPoints != None:
                 scan_points = newPoints
-                print("NEW!")
+                for p in scan_points:
+                    print(p)
+                print("\n\n\n")
+                
     except KeyboardInterrupt:
         print("Keyboard Interrupt")
         Raspi.running = False
